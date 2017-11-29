@@ -6,7 +6,8 @@ LDFLAGS 	= -L/opt/ti/msp430_gcc/include -L../lib
 
 #switch the compiler (for the internal make rules)
 CC              = msp430-elf-gcc
-AS              = msp430-elf-as
+#AS              = msp430-elf-as
+AS              = msp430-elf-gcc -mmcu=${CPU} -c
 AR              = msp430-elf-ar
 
 OBJECTS         = p2switches.o shape.o region.o rect.o vec2.o layer.o rarrow.o
@@ -34,8 +35,8 @@ install: libLcd.a
 clean:
 	rm -f libLcd.a *.o *.elf
 
-main.elf: main.o libLcd.a libp2sw.a libShape.a
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lTimer 
+main.elf: main.o libLcd.a libp2sw.a libShape.a wdt_handler.o
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lTimer -lLcd -lShape -lCircle -lp2sw
 
 load: main.elf
 	mspdebug rf2500 "prog $^"
