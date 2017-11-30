@@ -38,14 +38,6 @@ Layer layer1 = {
     &fieldLayer,
 };
 
-// Layer layer0 = {                                // layer with white circle
-//     (AbShape *) &circle2,
-//     {(screenWidth/2)+10, (screenHeight/2)+5},   // bit below & right of center
-//     {0,0}, {0,0},                               // last and next pos
-//     COLOR_WHITE,
-//     &layer1,                                    // next layer
-// };
-
 Layer layer0 = {                                // layer with white circle
     (AbShape *) &rect1,
     {(screenWidth/2)+10, (screenHeight/2)+5},   // bit below & right of center
@@ -65,8 +57,8 @@ typedef struct MovLayer_s {
 /* initial value of {0,0} will be overwritten */
 //MovLayer ml2 = { &layer2, {1,1}, 0 }; /**< not all layers move */
 //MovLayer ml1 = { &layer1, {1,2}, &ml2 };
-//MovLayer ml1 = { &layer1, {1,2}, 0 };    // paddle, TODO shouldn't move
-MovLayer ml0 = { &layer0, {2,1}, 0 }; // ball
+MovLayer ml1 = { &layer1, {0,0}, 0 };    // TODO add second paddle velocity 2,0
+MovLayer ml0 = { &layer0, {2,1}, &ml1}; // ball
 
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
@@ -171,26 +163,31 @@ int main()
         movLayerDraw(&ml0, &layer0);
         
     }
-    
-    //     drawString5x7(10, 10, "switches:", textColor, bgColor);
-    //     while (1) {
-    //         u_int switches = p2sw_read();
-    //         char str[5];
-    //         for (u_int i = 0; i < 4; i++)
-    //             str[i] = (switches & (1 << i)) ? '-' : '0' + i;
-    //         str[4] = 0;
-    //         drawString5x7(10, 20, str, textColor, bgColor);
-    //     }
-    // refer to switchdemo.c for led+switch
 }
 
-void drawSwitches(u_int switches)
-{
-    char str[5];
-    for (u_int i = 0; i < 4; i++)
-        str[i] = (switches & (1 << i)) ? '-' : '0' + i;
-    str[4] = 0;
-    drawString5x7(80, screenHeight - 8, str, textColor, bgColor);
+void readSwitches() {
+    u_int switches = p2sw_read();
+    u_int sw1 = switches & (1 << 0);
+    u_int sw2 = switches & (1 << 1);
+    u_int sw3 = switches & (1 << 2);
+    u_int sw4 = switches & (1 << 3);
+    
+    // TODO state machine
+    if (!sw3) {
+        drawString5x7(screenWidth/2, screenHeight/2, "L", textColor, bgColor);
+        Vec2 newPos;
+        vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
+        newPos.axes[0] += -4;
+        ml1.layer->posNext = newPos;
+    } else if (!sw4) {
+        drawString5x7(screenWidth/2, screenHeight/2, "R", textColor, bgColor);
+        Vec2 newPos;
+        vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
+        newPos.axes[0] += 4;
+        ml1.layer->posNext = newPos;
+    }
+    else
+        drawString5x7(screenWidth/2, screenHeight/2, "X", textColor, bgColor);
 }
 
 // watchdog timer interrupt handler, 10 interrupts/sec
@@ -201,17 +198,7 @@ void wdt_c_handler()
     count ++;
     if (count == 15) {
         mlAdvance(&ml0, &fieldFence);
-        u_int switches = p2sw_read();
-        
-        int sw1 = switches & (1 << 0);
-        int sw2 = switches & (1 << 1);
-        int sw3 = switches & (1 << 2);
-        int sw4 = switches & (1 << 3);
-        
-        if (sw1 && sw2 && sw3 && sw4) { // buttons are not pressed
-            //redrawScreen = 1;         // pause drawing
-        } else                          // any button is pressed
-            drawSwitches(switches);
+        readSwitches();
         redrawScreen = 1;
         count = 0;
     } 
