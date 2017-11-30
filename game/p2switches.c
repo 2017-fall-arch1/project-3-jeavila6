@@ -30,8 +30,7 @@ p2sw_init(unsigned char mask)
  * the high-order byte is the buttons that have changed,
  * the low-order byte is the current state of the buttons
  */
-unsigned int 
-p2sw_read() {
+unsigned int p2sw_read() {
   unsigned int sw_changed = switches_current ^ switches_last_reported;
   switches_last_reported = switches_current;
   return switches_current | (sw_changed << 8);
