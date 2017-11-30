@@ -174,20 +174,26 @@ void readSwitches() {
     
     // TODO state machine
     if (!sw3) {
-        drawString5x7(screenWidth/2, screenHeight/2, "L", textColor, bgColor);
+        drawString5x7(screenWidth/2, screenHeight/2, "l", textColor, bgColor);
         Vec2 newPos;
         vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
-        newPos.axes[0] += -4;
+        Region boundary;
+        abShapeGetBounds(ml1.layer->abShape, &newPos, &boundary);
+        if (boundary.topLeft.axes[0] - 5 > fieldFence.topLeft.axes[0])
+            newPos.axes[0] += -4;
         ml1.layer->posNext = newPos;
     } else if (!sw4) {
-        drawString5x7(screenWidth/2, screenHeight/2, "R", textColor, bgColor);
+        drawString5x7(screenWidth/2, screenHeight/2, "r", textColor, bgColor);
         Vec2 newPos;
         vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
-        newPos.axes[0] += 4;
+        Region boundary;
+        abShapeGetBounds(ml1.layer->abShape, &newPos, &boundary);
+        if (boundary.botRight.axes[0] + 5 < fieldFence.botRight.axes[0])
+            newPos.axes[0] += 4;
         ml1.layer->posNext = newPos;
     }
     else
-        drawString5x7(screenWidth/2, screenHeight/2, "X", textColor, bgColor);
+        drawString5x7(screenWidth/2, screenHeight/2, "x", textColor, bgColor);
 }
 
 // watchdog timer interrupt handler, 10 interrupts/sec
