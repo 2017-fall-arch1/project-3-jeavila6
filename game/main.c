@@ -4,17 +4,18 @@
 #include <lcddraw.h>
 #include <p2switches.h>
 #include <shape.h>
-#include <abCircle.h>
+//#include <abCircle.h>
 
 #define GREEN_LED BIT6
-
-AbRect rect10 = {abRectGetBounds, abRectCheck, {10, 1}};    // (getBounds, check, halfSize (vector))
-
 //Region fence = {{10,30}, {SHORT_EDGE_PIXELS-10, LONG_EDGE_PIXELS-10}}; // (topLeft, botRight) Not used?
-
 // playing field (getBounds, check, ???)
 
+AbRect rect2 = {abRectGetBounds, abRectCheck, {10, 1}};    // (getBounds, check, halfSize (vector))
+AbRect rect1 = {abRectGetBounds, abRectCheck, {1, 1}};    // (getBounds, check, halfSize (vector))
 u_int bgColor = COLOR_BLACK, textColor = COLOR_WHITE;
+static char bounces = 0;
+int redrawScreen = 1; // boolean, whether screen needs to be redrawn
+Region fieldFence;    // fence around playing field
 
 AbRectOutline fieldOutline = {
     abRectOutlineGetBounds, abRectOutlineCheck,   
@@ -30,15 +31,23 @@ Layer fieldLayer = {                    // playing field as layer
 };
 
 Layer layer1 = {
-    (AbShape *) &rect10,
-    {screenWidth/2, screenHeight/2},    // center
+    (AbShape *) &rect2,
+    {screenWidth/2, screenHeight - 15},    // center
     {0,0}, {0,0},
     COLOR_GREEN,
     &fieldLayer,
 };
 
+// Layer layer0 = {                                // layer with white circle
+//     (AbShape *) &circle2,
+//     {(screenWidth/2)+10, (screenHeight/2)+5},   // bit below & right of center
+//     {0,0}, {0,0},                               // last and next pos
+//     COLOR_WHITE,
+//     &layer1,                                    // next layer
+// };
+
 Layer layer0 = {                                // layer with white circle
-    (AbShape *) &circle2,
+    (AbShape *) &rect1,
     {(screenWidth/2)+10, (screenHeight/2)+5},   // bit below & right of center
     {0,0}, {0,0},                               // last and next pos
     COLOR_WHITE,
@@ -56,8 +65,8 @@ typedef struct MovLayer_s {
 /* initial value of {0,0} will be overwritten */
 //MovLayer ml2 = { &layer2, {1,1}, 0 }; /**< not all layers move */
 //MovLayer ml1 = { &layer1, {1,2}, &ml2 };
-MovLayer ml1 = { &layer1, {1,2}, 0 };    // paddle
-MovLayer ml0 = { &layer0, {2,1}, &ml1 }; // ball
+//MovLayer ml1 = { &layer1, {1,2}, 0 };    // paddle, TODO shouldn't move
+MovLayer ml0 = { &layer0, {2,1}, 0 }; // ball
 
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
@@ -100,9 +109,6 @@ void movLayerDraw(MovLayer *movLayers, Layer *layers)
  *  \param ml The moving shape to be advanced
  *  \param fence The region which will serve as a boundary for ml
  */
-
-static char bounces = 0;
-
 void mlAdvance(MovLayer *ml, Region *fence)
 {
     Vec2 newPos;
@@ -120,7 +126,7 @@ void mlAdvance(MovLayer *ml, Region *fence)
                 if ((shapeBoundary.topLeft.axes[1] < fence->topLeft.axes[1]) || (shapeBoundary.botRight.axes[1] > fence->botRight.axes[1]) ) { // if outside top or bottom
                     char b[12];
                     sprintf(b, "%d", ++bounces);
-                    drawString5x7(48, 1, b, textColor, bgColor);
+                    drawString5x7(117, 1, b, textColor, bgColor);
                 }
             }
         }
@@ -128,23 +134,20 @@ void mlAdvance(MovLayer *ml, Region *fence)
     }
 }
 
-
-
-int redrawScreen = 1; // boolean, whether screen needs to be redrawn
-Region fieldFence;    // fence around playing field
-
 int main()
 {
     P1DIR |= GREEN_LED; // green LED will be on when CPU is on
     P1OUT |= GREEN_LED;
     
     configureClocks();
-    lcd_init();        // initialize the lcd
-    //p2sw_init(15); // initialize switches, read all four switches
-    p2sw_init(1); // motion demo uses 1
+    lcd_init();         // initialize the lcd
+    p2sw_init(15);       // motion demo uses 1, use 15 to read all switches
     
     layerInit(&layer0); // sets bounds into a consistent state
     layerDraw(&layer0); // renders all layers, pixels not contained in a layer are
+    layerGetBounds(&fieldLayer, &fieldFence);
+    enableWDTInterrupts();      // enable periodic interrupt
+    or_sr(0x8);         // GIE (enable interrupts)
     
     //u_char width = screenWidth, height = screenHeight; // height is 160, width is 128
     //clearScreen(COLOR_GREEN);
@@ -152,17 +155,11 @@ int main()
     //fillRectangle(30, 30, 5, 5, COLOR_BLUE); 
     //drawRectOutline(30, 30, 20, 20, COLOR_RED);
     //drawPixel(20, 20, COLOR_RED);
-    
-    layerGetBounds(&fieldLayer, &fieldFence);
-    
-    enableWDTInterrupts();      /**< enable periodic interrupt */
-    or_sr(0x8); // GIE (enable interrupts)
-    
     //u_char width = screenWidth, height = screenHeight;
-        
-    drawString5x7(1, screenHeight - 8, "Version 3",  textColor, bgColor); // (column, row, string, fg color, bg color)
+    
+    drawString5x7(1, screenHeight - 8, "Rev 4",  textColor, bgColor); // (column, row, string, fg color, bg color)
     drawString5x7(82, 1, "Score", textColor, bgColor);
-    drawString5x7(1, 1, "Points", textColor, bgColor);
+    //drawString5x7(117, 1, "99", textColor, bgColor);
     
     for(;;) { 
         while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
@@ -172,11 +169,11 @@ int main()
         P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
         redrawScreen = 0;
         movLayerDraw(&ml0, &layer0);
-        //drawString5x7(117, 1, "99", textColor, bgColor); // TODO placeholder for points
+        
     }
     
     //     drawString5x7(10, 10, "switches:", textColor, bgColor);
-    //     while (1) { // TODO exit loop
+    //     while (1) {
     //         u_int switches = p2sw_read();
     //         char str[5];
     //         for (u_int i = 0; i < 4; i++)
@@ -185,6 +182,15 @@ int main()
     //         drawString5x7(10, 20, str, textColor, bgColor);
     //     }
     // refer to switchdemo.c for led+switch
+}
+
+void drawSwitches(u_int switches)
+{
+    char str[5];
+    for (u_int i = 0; i < 4; i++)
+        str[i] = (switches & (1 << i)) ? '-' : '0' + i;
+    str[4] = 0;
+    drawString5x7(80, screenHeight - 8, str, textColor, bgColor);
 }
 
 // watchdog timer interrupt handler, 10 interrupts/sec
@@ -196,8 +202,17 @@ void wdt_c_handler()
     if (count == 15) {
         mlAdvance(&ml0, &fieldFence);
         u_int switches = p2sw_read();
-        if (switches)
-            redrawScreen = 1;
+        
+        int sw1 = switches & (1 << 0);
+        int sw2 = switches & (1 << 1);
+        int sw3 = switches & (1 << 2);
+        int sw4 = switches & (1 << 3);
+        
+        if (sw1 && sw2 && sw3 && sw4) { // buttons are not pressed
+            //redrawScreen = 1;         // pause drawing
+        } else                          // any button is pressed
+            drawSwitches(switches);
+        redrawScreen = 1;
         count = 0;
     } 
     P1OUT &= ~GREEN_LED;        // green LED off when CPU off
