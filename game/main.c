@@ -16,6 +16,7 @@ u_int bgColor = COLOR_BLACK, textColor = COLOR_WHITE;
 static char bounces = 0;
 int redrawScreen = 1; // boolean, whether screen needs to be redrawn
 Region fieldFence;    // fence around playing field
+//Region paddleFence;
 
 AbRectOutline fieldOutline = {
     abRectOutlineGetBounds, abRectOutlineCheck,   
@@ -32,13 +33,13 @@ Layer fieldLayer = {                    // playing field as layer
 
 Layer layer1 = {
     (AbShape *) &rect2,
-    {screenWidth/2, screenHeight - 15},    // center
+    {screenWidth/2, screenHeight - 13},    // center
     {0,0}, {0,0},
-    COLOR_GREEN,
+    COLOR_WHITE,
     &fieldLayer,
 };
 
-Layer layer0 = {                                // layer with white circle
+Layer layer0 = {                                // layer with white ball
     (AbShape *) &rect1,
     {(screenWidth/2)+10, (screenHeight/2)+5},   // bit below & right of center
     {0,0}, {0,0},                               // last and next pos
@@ -58,7 +59,7 @@ typedef struct MovLayer_s {
 //MovLayer ml2 = { &layer2, {1,1}, 0 }; /**< not all layers move */
 //MovLayer ml1 = { &layer1, {1,2}, &ml2 };
 MovLayer ml1 = { &layer1, {0,0}, 0 };    // TODO add second paddle velocity 2,0
-MovLayer ml0 = { &layer0, {2,1}, &ml1}; // ball
+MovLayer ml0 = { &layer0, {4,2}, &ml1}; // ball
 
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
@@ -101,13 +102,37 @@ void movLayerDraw(MovLayer *movLayers, Layer *layers)
  *  \param ml The moving shape to be advanced
  *  \param fence The region which will serve as a boundary for ml
  */
+// void mlAdvance(MovLayer *ml, Region *fence)
+// {
+//     Vec2 newPos;
+//     u_char axis;
+//     Region shapeBoundary;
+//     
+//     for (; ml; ml = ml->next) { // for ml
+//         vec2Add(&newPos, &ml->layer->posNext, &ml->velocity);
+//         abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
+//         for (axis = 0; axis < 2; axis ++) { // for axis
+//             if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) || (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis]) ) { // if outside fence
+//                 int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
+//                 newPos.axes[axis] += (2*velocity);
+//                 // TODO seperate points for player and PC
+//                 if ((shapeBoundary.topLeft.axes[1] < fence->topLeft.axes[1]) || (shapeBoundary.botRight.axes[1] > fence->botRight.axes[1]) ) { // if outside top or bottom
+//                     char b[12];
+//                     sprintf(b, "%d", ++bounces);
+//                     drawString5x7(117, 1, b, textColor, bgColor);
+//                 }
+//             }
+//         }
+//         ml->layer->posNext = newPos;
+//     }
+// }
+
 void mlAdvance(MovLayer *ml, Region *fence)
 {
     Vec2 newPos;
     u_char axis;
     Region shapeBoundary;
     
-    for (; ml; ml = ml->next) { // for ml
         vec2Add(&newPos, &ml->layer->posNext, &ml->velocity);
         abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
         for (axis = 0; axis < 2; axis ++) { // for axis
@@ -123,7 +148,34 @@ void mlAdvance(MovLayer *ml, Region *fence)
             }
         }
         ml->layer->posNext = newPos;
+}
+
+void checkBounce(MovLayer *ml0, MovLayer *ml1)
+{
+    Vec2 newPos0;
+    vec2Add(&newPos0, &ml0->layer->posNext, &ml0->velocity);
+    Region ballBound;
+    abShapeGetBounds(ml0->layer->abShape, &newPos0, &ballBound);
+    
+    Vec2 newPos1;
+    vec2Add(&newPos1, &ml1->layer->posNext, &ml1->velocity);
+    Region padBound;
+    abShapeGetBounds(ml1->layer->abShape, &newPos1, &padBound);
+    
+    int half = (ballBound.topLeft.axes[0] + ballBound.botRight.axes[0]) / 2;
+    
+    if (half > padBound.topLeft.axes[0] && half < padBound.botRight.axes[0] && ballBound.botRight.axes[1] > padBound.topLeft.axes[1]) {
+        drawString5x7(screenWidth/2, screenHeight/2, "0", textColor, bgColor);
+        //int velocity = -ml0->velocity.axes[0];
+        //newPos0.axes[0] += (2*velocity);
+        int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
+        newPos0.axes[1] += (2*velocity);
+        ml0->layer->posNext = newPos0;
+        
     }
+    else
+        drawString5x7(screenWidth/2, screenHeight/2, "1", textColor, bgColor);
+    
 }
 
 int main()
@@ -138,6 +190,7 @@ int main()
     layerInit(&layer0); // sets bounds into a consistent state
     layerDraw(&layer0); // renders all layers, pixels not contained in a layer are
     layerGetBounds(&fieldLayer, &fieldFence);
+    //layerGetBounds(&layer1, &paddleFence);
     enableWDTInterrupts();      // enable periodic interrupt
     or_sr(0x8);         // GIE (enable interrupts)
     
@@ -149,7 +202,7 @@ int main()
     //drawPixel(20, 20, COLOR_RED);
     //u_char width = screenWidth, height = screenHeight;
     
-    drawString5x7(1, screenHeight - 8, "Rev 4",  textColor, bgColor); // (column, row, string, fg color, bg color)
+    drawString5x7(1, screenHeight - 8, "Rev 5",  textColor, bgColor); // (column, row, string, fg color, bg color)
     drawString5x7(82, 1, "Score", textColor, bgColor);
     //drawString5x7(117, 1, "99", textColor, bgColor);
     
@@ -174,7 +227,7 @@ void readSwitches() {
     
     // TODO state machine
     if (!sw3) {
-        drawString5x7(screenWidth/2, screenHeight/2, "l", textColor, bgColor);
+        //drawString5x7(screenWidth/2, screenHeight/2, "l", textColor, bgColor);
         Vec2 newPos;
         vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
         Region boundary;
@@ -183,7 +236,7 @@ void readSwitches() {
             newPos.axes[0] += -4;
         ml1.layer->posNext = newPos;
     } else if (!sw4) {
-        drawString5x7(screenWidth/2, screenHeight/2, "r", textColor, bgColor);
+        //drawString5x7(screenWidth/2, screenHeight/2, "r", textColor, bgColor);
         Vec2 newPos;
         vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
         Region boundary;
@@ -192,8 +245,8 @@ void readSwitches() {
             newPos.axes[0] += 4;
         ml1.layer->posNext = newPos;
     }
-    else
-        drawString5x7(screenWidth/2, screenHeight/2, "x", textColor, bgColor);
+    //else
+        //drawString5x7(screenWidth/2, screenHeight/2, "x", textColor, bgColor);
 }
 
 // watchdog timer interrupt handler, 10 interrupts/sec
@@ -204,6 +257,7 @@ void wdt_c_handler()
     count ++;
     if (count == 15) {
         mlAdvance(&ml0, &fieldFence);
+        checkBounce(&ml0, &ml1);
         readSwitches();
         redrawScreen = 1;
         count = 0;
