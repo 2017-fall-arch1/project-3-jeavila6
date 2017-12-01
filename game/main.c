@@ -1,9 +1,10 @@
 #include <msp430.h>
-#include <libTimer.h>
-#include <lcdutils.h>
-#include <lcddraw.h>
-#include <p2switches.h>
-#include <shape.h>
+#include "libTimer.h"
+#include "lcdutils.h"
+#include "lcddraw.h"
+#include "p2switches.h"
+#include "shape.h"
+#include "buzzer.h"
 //#include <abCircle.h>
 
 #define GREEN_LED BIT6
@@ -145,9 +146,15 @@ void mlAdvance(MovLayer *ml, Region *fence)
                     sprintf(b, "%d", ++bounces);
                     drawString5x7(117, 1, b, textColor, bgColor);
                 }
+                
+                
+// TODO fix this simpler
+                
+                
             }
         }
         ml->layer->posNext = newPos;
+        //buzzerSetPeriod(N0);
 }
 
 void checkBounce(MovLayer *ml0, MovLayer *ml1)
@@ -164,7 +171,7 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1)
     
     int half = (ballBound.topLeft.axes[0] + ballBound.botRight.axes[0]) / 2;
     
-    if (half > padBound.topLeft.axes[0] && half < padBound.botRight.axes[0] && ballBound.botRight.axes[1] > padBound.topLeft.axes[1]) {
+    if (half > padBound.topLeft.axes[0] && half < padBound.botRight.axes[0] && ballBound.botRight.axes[1] >= padBound.topLeft.axes[1]) {
         drawString5x7(screenWidth/2, screenHeight/2, "0", textColor, bgColor);
         //int velocity = -ml0->velocity.axes[0];
         //newPos0.axes[0] += (2*velocity);
@@ -186,6 +193,8 @@ int main()
     configureClocks();
     lcd_init();         // initialize the lcd
     p2sw_init(15);       // motion demo uses 1, use 15 to read all switches
+    
+    buzzer_init();
     
     layerInit(&layer0); // sets bounds into a consistent state
     layerDraw(&layer0); // renders all layers, pixels not contained in a layer are
@@ -210,13 +219,16 @@ int main()
         while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
             P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
             or_sr(0x10);	      /**< CPU OFF */
+            //drawString5x7(1, 1, "OF",  textColor, bgColor);
         }
         P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
         redrawScreen = 0;
         movLayerDraw(&ml0, &layer0);
-        
+        //drawString5x7(1, 1, "ON",  textColor, bgColor);
+
     }
 }
+
 
 void readSwitches() {
     u_int switches = p2sw_read();
@@ -249,19 +261,29 @@ void readSwitches() {
         //drawString5x7(screenWidth/2, screenHeight/2, "x", textColor, bgColor);
 }
 
+void quiet() {
+}
+
 // watchdog timer interrupt handler, 10 interrupts/sec
 void wdt_c_handler()
 {
     static short count = 0;
+    //static int buzz = 0;
     P1OUT |= GREEN_LED;         // green LED on when CPU on
     count ++;
+    //buzz++;
+
     if (count == 15) {
         mlAdvance(&ml0, &fieldFence);
         checkBounce(&ml0, &ml1);
         readSwitches();
+        //buzzerSetPeriod(N0);
+        
         redrawScreen = 1;
         count = 0;
+        //buzz++;
     } 
+
     P1OUT &= ~GREEN_LED;        // green LED off when CPU off
 }
 

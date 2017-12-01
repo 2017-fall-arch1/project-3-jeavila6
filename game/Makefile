@@ -35,7 +35,7 @@ install: libLcd.a
 clean:
 	rm -f libLcd.a *.o *.elf
 
-main.elf: main.o libLcd.a libp2sw.a libShape.a wdt_handler.o
+main.elf: main.o libLcd.a libp2sw.a libShape.a wdt_handler.o buzzer.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lTimer -lLcd -lShape -lCircle -lp2sw
 
 load: main.elf
