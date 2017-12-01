@@ -11,7 +11,7 @@
 Region wall = {{1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};   // (topLeft, botRight) Not used?
 
 AbRect rect1 = {abRectGetBounds, abRectCheck, {10, 1}};
-AbRect rect0 = {abRectGetBounds, abRectCheck, {1, 1}};
+AbRect rect0 = {abRectGetBounds, abRectCheck, {1,  1}};
 
 u_int bgColor = COLOR_BLACK, textColor = COLOR_WHITE;
 
@@ -58,8 +58,8 @@ typedef struct MovLayer_s {
 } MovLayer;
 
 /* initial value of {0,0} will be overwritten */
-//MovLayer ml2 = { &layer2, {0,0}, 0 };
-MovLayer ml1 = { &layer1, {0,0}, 0 };    // TODO add second paddle velocity 2,0
+MovLayer ml2 = { &layer2, {0,0}, 0 };
+MovLayer ml1 = { &layer1, {0,0}, &ml2 };    // TODO add second paddle velocity 2,0
 MovLayer ml0 = { &layer0, {2,4}, &ml1}; // ball
 
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
@@ -149,24 +149,23 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1)
 
 int main()
 {
-    P1DIR |= GREEN_LED; // green LED will be on when CPU is on
+    P1DIR |= GREEN_LED;     // green LED will be on when CPU is on
     P1OUT |= GREEN_LED;
     
     configureClocks();
-    lcd_init();         // initialize the lcd
-    p2sw_init(15);       // motion demo uses 1, use 15 to read all switches
+    lcd_init();             // init lcd
+    p2sw_init(15);          // motion demo uses 1, use 15 to read all switches
+    buzzer_init();          // init buzzer
     
-    buzzer_init();
+    layerInit(&layer0);     // sets bounds into a consistent state
+    layerDraw(&layer0);     // renders all layers, pixels not contained in a layer are
     
-    layerInit(&layer0); // sets bounds into a consistent state
-    layerDraw(&layer0); // renders all layers, pixels not contained in a layer are
-    enableWDTInterrupts();      // enable periodic interrupt
-    or_sr(0x8);         // GIE (enable interrupts)
+    enableWDTInterrupts();  // enable periodic interrupt
+    or_sr(0x8);             // GIE (enable interrupts)
     
-    drawString5x7(1, screenHeight - 8, "Pong v7",  textColor, bgColor); // (column, row, string, fg color, bg color)
+    drawString5x7(1, screenHeight - 8, "Pong v8",  textColor, bgColor); // (column, row, string, fg color, bg color)
     drawString5x7(117, 1, "0", textColor, bgColor);
     drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);
-    
     
     for(;;) { 
         while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
@@ -189,8 +188,10 @@ void readSwitches() {
     u_int sw4 = switches & (1 << 3);
     
     // TODO state machine
+    if (!sw2) {
+    }
     if (!sw3) {
-        //drawString5x7(screenWidth/2, screenHeight/2, "l", textColor, bgColor);
+        //drawString5x7(screenWidth/2, screenHeight/2, "3", textColor, bgColor);
         Vec2 newPos;
         vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
         Region boundary;
@@ -198,8 +199,9 @@ void readSwitches() {
         if (boundary.topLeft.axes[0] - 4 > wall.topLeft.axes[0])
             newPos.axes[0] += -4;
         ml1.layer->posNext = newPos;
-    } else if (!sw4) {
-        //drawString5x7(screenWidth/2, screenHeight/2, "r", textColor, bgColor);
+    }
+    if (!sw4) {
+        //drawString5x7(screenWidth/2, screenHeight/2, "4", textColor, bgColor);
         Vec2 newPos;
         vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
         Region boundary;
@@ -208,8 +210,31 @@ void readSwitches() {
             newPos.axes[0] += 4;
         ml1.layer->posNext = newPos;
     }
-    //else
-        //drawString5x7(screenWidth/2, screenHeight/2, "x", textColor, bgColor);
+}
+
+void moveOpponent(MovLayer *ml0, MovLayer *ml2) {
+    Vec2 newPos0;
+    vec2Add(&newPos0, &ml0->layer->posNext, &ml0->velocity);
+    Region ballBound;
+    abShapeGetBounds(ml0->layer->abShape, &newPos0, &ballBound);
+    
+    Vec2 newPos2;
+    vec2Add(&newPos2, &ml2->layer->posNext, &ml2->velocity);
+    Region padBound;
+    abShapeGetBounds(ml2->layer->abShape, &newPos2, &padBound);
+    
+    if (ballBound.topLeft.axes[0] < padBound.topLeft.axes[0] && padBound.topLeft.axes[0] - 4 > wall.topLeft.axes[0]) {
+        newPos2.axes[0] -= 4;
+        
+    }
+    if (ballBound.botRight.axes[0] > padBound.botRight.axes[0] && padBound.botRight.axes[0] + 4 < wall.botRight.axes[0]) {
+        newPos2.axes[0] += 4;
+        
+    }
+    ml2->layer->posNext = newPos2;
+        
+    //}
+    
 }
 
 // watchdog timer interrupt handler, 10 interrupts/sec
@@ -221,6 +246,7 @@ void wdt_c_handler()
     if (count == 15) {
         mlAdvance(&ml0);
         checkBounce(&ml0, &ml1);
+        moveOpponent(&ml0, &ml2);
         readSwitches();
         redrawScreen = 1;
         count = 0;
