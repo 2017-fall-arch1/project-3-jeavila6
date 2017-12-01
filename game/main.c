@@ -14,7 +14,7 @@
 AbRect rect2 = {abRectGetBounds, abRectCheck, {10, 1}};    // (getBounds, check, halfSize (vector))
 AbRect rect1 = {abRectGetBounds, abRectCheck, {1, 1}};    // (getBounds, check, halfSize (vector))
 u_int bgColor = COLOR_BLACK, textColor = COLOR_WHITE;
-static char bounces = 0;
+static char score1 = 0, score2 = 0;
 int redrawScreen = 1; // boolean, whether screen needs to be redrawn
 Region fieldFence;    // fence around playing field
 //Region paddleFence;
@@ -32,11 +32,11 @@ Layer fieldLayer = {                    // playing field as layer
     0,
 };
 
-Layer layer1 = {
+Layer layer1 = {                                // layer with green padle
     (AbShape *) &rect2,
-    {screenWidth/2, screenHeight - 13},    // center
+    {screenWidth/2, screenHeight - 13},
     {0,0}, {0,0},
-    COLOR_WHITE,
+    COLOR_GREEN,
     &fieldLayer,
 };
 
@@ -60,7 +60,7 @@ typedef struct MovLayer_s {
 //MovLayer ml2 = { &layer2, {1,1}, 0 }; /**< not all layers move */
 //MovLayer ml1 = { &layer1, {1,2}, &ml2 };
 MovLayer ml1 = { &layer1, {0,0}, 0 };    // TODO add second paddle velocity 2,0
-MovLayer ml0 = { &layer0, {4,2}, &ml1}; // ball
+MovLayer ml0 = { &layer0, {2,4}, &ml1}; // ball
 
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
@@ -134,27 +134,30 @@ void mlAdvance(MovLayer *ml, Region *fence)
     u_char axis;
     Region shapeBoundary;
     
-        vec2Add(&newPos, &ml->layer->posNext, &ml->velocity);
-        abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
-        for (axis = 0; axis < 2; axis ++) { // for axis
-            if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) || (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis]) ) { // if outside fence
-                int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
-                newPos.axes[axis] += (2*velocity);
-                // TODO seperate points for player and PC
-                if ((shapeBoundary.topLeft.axes[1] < fence->topLeft.axes[1]) || (shapeBoundary.botRight.axes[1] > fence->botRight.axes[1]) ) { // if outside top or bottom
-                    char b[12];
-                    sprintf(b, "%d", ++bounces);
-                    drawString5x7(117, 1, b, textColor, bgColor);
-                }
-                
-                
-// TODO fix this simpler
-                
-                
+    vec2Add(&newPos, &ml->layer->posNext, &ml->velocity);
+    abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
+    for (axis = 0; axis < 2; axis ++) { // for axis
+        if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) || (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis]) ) { // if outside fence
+            int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
+            newPos.axes[axis] += (2*velocity);
+            // TODO seperate points for player and PC
+            
+            if (shapeBoundary.botRight.axes[1] > fence->botRight.axes[1]) { // hits top, score for player 1
+                char b[12];
+                sprintf(b, "%d", ++score1);
+                drawString5x7(117, 1, b, textColor, bgColor);
             }
+            
+            if (shapeBoundary.topLeft.axes[1] < fence->topLeft.axes[1]) { // hits top, score for player 2
+                char b[12];
+                sprintf(b, "%d", ++score2);
+                drawString5x7(117, screenHeight - 8, b, textColor, bgColor);
+            }
+// TODO fix this simpler
         }
-        ml->layer->posNext = newPos;
-        //buzzerSetPeriod(N0);
+    }
+    ml->layer->posNext = newPos;
+    //buzzerSetPeriod(N0);
 }
 
 void checkBounce(MovLayer *ml0, MovLayer *ml1)
@@ -171,8 +174,8 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1)
     
     int half = (ballBound.topLeft.axes[0] + ballBound.botRight.axes[0]) / 2;
     
-    if (half > padBound.topLeft.axes[0] && half < padBound.botRight.axes[0] && ballBound.botRight.axes[1] >= padBound.topLeft.axes[1]) {
-        drawString5x7(screenWidth/2, screenHeight/2, "0", textColor, bgColor);
+    if (half >= padBound.topLeft.axes[0] && half <= padBound.botRight.axes[0] && ballBound.botRight.axes[1] > padBound.topLeft.axes[1]) {
+        //drawString5x7(screenWidth/2, screenHeight/2, "0", textColor, bgColor);
         //int velocity = -ml0->velocity.axes[0];
         //newPos0.axes[0] += (2*velocity);
         int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
@@ -180,9 +183,6 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1)
         ml0->layer->posNext = newPos0;
         
     }
-    else
-        drawString5x7(screenWidth/2, screenHeight/2, "1", textColor, bgColor);
-    
 }
 
 int main()
@@ -211,9 +211,9 @@ int main()
     //drawPixel(20, 20, COLOR_RED);
     //u_char width = screenWidth, height = screenHeight;
     
-    drawString5x7(1, screenHeight - 8, "Rev 5",  textColor, bgColor); // (column, row, string, fg color, bg color)
-    drawString5x7(82, 1, "Score", textColor, bgColor);
-    //drawString5x7(117, 1, "99", textColor, bgColor);
+    drawString5x7(1, screenHeight - 8, "Pong v6",  textColor, bgColor); // (column, row, string, fg color, bg color)
+    drawString5x7(117, 1, "0", textColor, bgColor);
+    drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);
     
     for(;;) { 
         while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
@@ -244,7 +244,7 @@ void readSwitches() {
         vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
         Region boundary;
         abShapeGetBounds(ml1.layer->abShape, &newPos, &boundary);
-        if (boundary.topLeft.axes[0] - 5 > fieldFence.topLeft.axes[0])
+        if (boundary.topLeft.axes[0] - 4 > fieldFence.topLeft.axes[0])
             newPos.axes[0] += -4;
         ml1.layer->posNext = newPos;
     } else if (!sw4) {
@@ -253,7 +253,7 @@ void readSwitches() {
         vec2Add(&newPos, &ml1.layer->posNext, &ml1.velocity);
         Region boundary;
         abShapeGetBounds(ml1.layer->abShape, &newPos, &boundary);
-        if (boundary.botRight.axes[0] + 5 < fieldFence.botRight.axes[0])
+        if (boundary.botRight.axes[0] + 4 < fieldFence.botRight.axes[0])
             newPos.axes[0] += 4;
         ml1.layer->posNext = newPos;
     }
