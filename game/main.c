@@ -8,8 +8,7 @@
 //#include <abCircle.h>
 
 #define GREEN_LED BIT6
-//Region wall = {{1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};
-Region wall = {{1,15}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};
+Region wall = {{1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};
 
 AbRect rect1 = {abRectGetBounds, abRectCheck, {10, 1}};
 AbRect rect0 = {abRectGetBounds, abRectCheck, {1,  1}};
@@ -136,7 +135,7 @@ void mlAdvance(MovLayer *ml)
 
 
 
-void checkBounce(MovLayer *ml0, MovLayer *ml1)
+void checkBounce(MovLayer *ml0, MovLayer *ml1, MovLayer *ml2)
 {
     Vec2 newPos0;
     vec2Add(&newPos0, &ml0->layer->posNext, &ml0->velocity);
@@ -145,25 +144,28 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1)
     
     Vec2 newPos1;
     vec2Add(&newPos1, &ml1->layer->posNext, &ml1->velocity);
-    Region padBound;
-    abShapeGetBounds(ml1->layer->abShape, &newPos1, &padBound);
+    Region padBound1;
+    abShapeGetBounds(ml1->layer->abShape, &newPos1, &padBound1);
+    
+    Vec2 newPos2;
+    vec2Add(&newPos2, &ml2->layer->posNext, &ml2->velocity);
+    Region padBound2;
+    abShapeGetBounds(ml2->layer->abShape, &newPos2, &padBound2);
     
     int half = (ballBound.topLeft.axes[0] + ballBound.botRight.axes[0]) / 2;
     
-    //int third = (padBound.topLeft.axes[0] + padBound.botRight.axes[0]) / 3;
-    
-    if (half >= padBound.topLeft.axes[0] && half <= padBound.botRight.axes[0] && ballBound.botRight.axes[1] > padBound.topLeft.axes[1]) {
+    if (half >= padBound1.topLeft.axes[0] && half <= padBound1.botRight.axes[0] && ballBound.botRight.axes[1] > padBound1.topLeft.axes[1]) {
         int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
         newPos0.axes[1] += (2*velocity);
-        
-//         if ((half >= padBound.topLeft.axes[0] && half < padBound.topLeft.axes[0] + 3) || (half <= padBound.botRight.axes[0] && half > padBound.botRight.axes[0] - 3)) {
-//             velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
-//             newPos0.axes[1] += (2*velocity) + 1;
-//         }
         beepOnce(A3);
         ml0->layer->posNext = newPos0;
-        
-        
+    }
+    
+    if (half >= padBound2.topLeft.axes[0] && half <= padBound2.botRight.axes[0] && ballBound.botRight.axes[1] < padBound2.topLeft.axes[1]) {
+        int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
+        newPos0.axes[1] += (2*velocity);
+        beepOnce(A3);
+        ml0->layer->posNext = newPos0;
     }
 }
 
@@ -183,7 +185,7 @@ int main()
     enableWDTInterrupts();  // enable periodic interrupt
     or_sr(0x8);             // GIE (enable interrupts)
     
-    drawString5x7(1, screenHeight - 8, "Pong v8",  textColor, bgColor); // (column, row, string, fg color, bg color)
+    drawString5x7(1, screenHeight - 8, "Pong v9",  textColor, bgColor); // (column, row, string, fg color, bg color)
     drawString5x7(117, 1, "0", textColor, bgColor);
     drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);
     
@@ -197,8 +199,8 @@ int main()
         redrawScreen = 0;
         
         mlAdvance(&ml0);
-        checkBounce(&ml0, &ml1);
-        moveOpponent(&ml0, &ml2);
+        checkBounce(&ml0, &ml1, &ml2);
+        //moveOpponent(&ml0, &ml2);
         readSwitches();
         
         movLayerDraw(&ml0, &layer0);
@@ -216,7 +218,23 @@ void readSwitches() {
     u_int sw4 = switches & (1 << 3);
     
     // TODO state machine
+    if (!sw1) {
+        Vec2 newPos;
+        vec2Add(&newPos, &ml2.layer->posNext, &ml2.velocity);
+        Region boundary;
+        abShapeGetBounds(ml2.layer->abShape, &newPos, &boundary);
+        if (boundary.topLeft.axes[0] - 4 > wall.topLeft.axes[0])
+            newPos.axes[0] += -4;
+        ml2.layer->posNext = newPos;
+    }
     if (!sw2) {
+        Vec2 newPos;
+        vec2Add(&newPos, &ml2.layer->posNext, &ml2.velocity);
+        Region boundary;
+        abShapeGetBounds(ml2.layer->abShape, &newPos, &boundary);
+        if (boundary.botRight.axes[0] + 4 < wall.botRight.axes[0])
+            newPos.axes[0] += 4;
+        ml2.layer->posNext = newPos;
     }
     if (!sw3) {
         //drawString5x7(screenWidth/2, screenHeight/2, "3", textColor, bgColor);
