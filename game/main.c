@@ -4,14 +4,16 @@
 #include <lcddraw.h>
 #include <p2switches.h>
 #include <shape.h>
+#include <stdio.h>
 #include "buzzer.h"
-//#include <abCircle.h>
 
 #define GREEN_LED BIT6
+
 Region wall = {{1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};
 
-AbRect rect1 = {abRectGetBounds, abRectCheck, {10, 1}};
-AbRect rect0 = {abRectGetBounds, abRectCheck, {1,  1}};
+//AbPaddle pad0 = {abPaddleGetBounds, abPaddleCheck, {10, 1}};
+AbRect rect1  = {abRectGetBounds, abRectCheck, {10, 1}};
+AbRect rect0  = {abRectGetBounds, abRectCheck, {1,  1}};
 
 u_int bgColor = COLOR_BLACK, textColor = COLOR_WHITE;
 
@@ -59,7 +61,7 @@ typedef struct MovLayer_s {
 
 /* initial value of {0,0} will be overwritten */
 MovLayer ml2 = { &layer2, {0,0}, 0 };
-MovLayer ml1 = { &layer1, {0,0}, &ml2 };    // TODO add second paddle velocity 2,0
+MovLayer ml1 = { &layer1, {0,0}, &ml2};    // TODO add second paddle velocity 2,0
 MovLayer ml0 = { &layer0, {2,4}, &ml1}; // ball
 
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
@@ -169,47 +171,6 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1, MovLayer *ml2)
     }
 }
 
-int main()
-{
-    P1DIR |= GREEN_LED;     // green LED will be on when CPU is on
-    P1OUT |= GREEN_LED;
-    
-    configureClocks();
-    lcd_init();             // init lcd
-    p2sw_init(15);          // motion demo uses 1, use 15 to read all switches
-    buzzer_init();          // init buzzer
-    
-    layerInit(&layer0);     // sets bounds into a consistent state
-    layerDraw(&layer0);     // renders all layers, pixels not contained in a layer are
-    
-    enableWDTInterrupts();  // enable periodic interrupt
-    or_sr(0x8);             // GIE (enable interrupts)
-    
-    drawString5x7(1, screenHeight - 8, "Pong v9",  textColor, bgColor); // (column, row, string, fg color, bg color)
-    drawString5x7(117, 1, "0", textColor, bgColor);
-    drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);
-    
-    for(;;) { 
-        while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
-            P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
-            or_sr(0x10);	      /**< CPU OFF */
-            //drawString5x7(1, 1, "OF",  textColor, bgColor);
-        }
-        P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
-        redrawScreen = 0;
-        
-        mlAdvance(&ml0);
-        checkBounce(&ml0, &ml1, &ml2);
-        //moveOpponent(&ml0, &ml2);
-        readSwitches();
-        
-        movLayerDraw(&ml0, &layer0);
-        
-       
-    }
-}
-
-
 void readSwitches() {
     u_int switches = p2sw_read();
     u_int sw1 = switches & (1 << 0);
@@ -258,23 +219,45 @@ void readSwitches() {
     }
 }
 
-void moveOpponent(MovLayer *ml0, MovLayer *ml2) {
-    Vec2 newPos0;
-    vec2Add(&newPos0, &ml0->layer->posNext, &ml0->velocity);
-    Region ballBound;
-    abShapeGetBounds(ml0->layer->abShape, &newPos0, &ballBound);
+
+int main()
+{
+    P1DIR |= GREEN_LED;     // green LED will be on when CPU is on
+    P1OUT |= GREEN_LED;
     
-    Vec2 newPos2;
-    vec2Add(&newPos2, &ml2->layer->posNext, &ml2->velocity);
-    Region padBound;
-    abShapeGetBounds(ml2->layer->abShape, &newPos2, &padBound);
+    configureClocks();
+    lcd_init();             // init lcd
+    p2sw_init(15);          // motion demo uses 1, use 15 to read all switches
+    buzzer_init();          // init buzzer
     
-    if (ballBound.topLeft.axes[0] < padBound.topLeft.axes[0] && padBound.topLeft.axes[0] - 4 > wall.topLeft.axes[0])
-        newPos2.axes[0] -= 4;
-    if (ballBound.botRight.axes[0] > padBound.botRight.axes[0] && padBound.botRight.axes[0] + 4 < wall.botRight.axes[0])
-        newPos2.axes[0] += 4;
-    ml2->layer->posNext = newPos2;
+    layerInit(&layer0);     // sets bounds into a consistent state
+    layerDraw(&layer0);     // renders all layers, pixels not contained in a layer are
     
+    enableWDTInterrupts();  // enable periodic interrupt
+    or_sr(0x8);             // GIE (enable interrupts)
+    
+    drawString5x7(1, screenHeight - 8, "Pong v9",  textColor, bgColor); // (column, row, string, fg color, bg color)
+    drawString5x7(117, 1, "0", textColor, bgColor);
+    drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);
+    
+    for(;;) { 
+        while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
+            P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
+            or_sr(0x10);	      /**< CPU OFF */
+            //drawString5x7(1, 1, "OF",  textColor, bgColor);
+        }
+        P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
+        redrawScreen = 0;
+        
+        mlAdvance(&ml0);
+        checkBounce(&ml0, &ml1, &ml2);
+        //moveOpponent(&ml0, &ml2);
+        readSwitches();
+        
+        movLayerDraw(&ml0, &layer0);
+        
+       
+    }
 }
 
 // watchdog timer interrupt handler, 10 interrupts/sec

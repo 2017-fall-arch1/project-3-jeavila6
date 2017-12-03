@@ -10,7 +10,7 @@ CC              = msp430-elf-gcc
 AS              = msp430-elf-gcc -mmcu=${CPU} -c
 AR              = msp430-elf-ar
 
-OBJECTS         = p2switches.o shape.o region.o rect.o vec2.o layer.o rarrow.o
+OBJECTS         = p2switches.o shape.o region.o rect.o vec2.o layer.o rarrow.o paddle.o
 
 clean:
 	rm -f libLcd.a *.o *.elf
