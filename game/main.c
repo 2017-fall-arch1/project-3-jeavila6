@@ -8,7 +8,7 @@
 //#include <abCircle.h>
 
 #define GREEN_LED BIT6
-Region wall = {{1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};   // (topLeft, botRight) Not used?
+Region wall = {{1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};
 
 AbRect rect1 = {abRectGetBounds, abRectCheck, {10, 1}};
 AbRect rect0 = {abRectGetBounds, abRectCheck, {1,  1}};
@@ -120,6 +120,12 @@ void mlAdvance(MovLayer *ml)
                 sprintf(b, "%d", ++score2);
                 drawString5x7(117, screenHeight - 8, b, textColor, bgColor);
             }
+            or_sr(8);
+            //and_sr(~8);
+            for (int i = 0; i < 10000; i ++)
+                buzzerSetPeriod(C3);
+            //or_sr(8);
+            and_sr(~8);
         }
     }
     ml->layer->posNext = newPos;
@@ -139,10 +145,19 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1)
     abShapeGetBounds(ml1->layer->abShape, &newPos1, &padBound);
     
     int half = (ballBound.topLeft.axes[0] + ballBound.botRight.axes[0]) / 2;
+    
+    //int third = (padBound.topLeft.axes[0] + padBound.botRight.axes[0]) / 3;
+    
     if (half >= padBound.topLeft.axes[0] && half <= padBound.botRight.axes[0] && ballBound.botRight.axes[1] > padBound.topLeft.axes[1]) {
         int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
         newPos0.axes[1] += (2*velocity);
+        
+//         if ((half >= padBound.topLeft.axes[0] && half < padBound.topLeft.axes[0] + 3) || (half <= padBound.botRight.axes[0] && half > padBound.botRight.axes[0] - 3)) {
+//             velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
+//             newPos0.axes[1] += (2*velocity) + 1;
+//         }
         ml0->layer->posNext = newPos0;
+        
         
     }
 }
@@ -175,7 +190,16 @@ int main()
         }
         P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
         redrawScreen = 0;
+        
+         mlAdvance(&ml0);
+        checkBounce(&ml0, &ml1);
+        moveOpponent(&ml0, &ml2);
+        readSwitches();
+        
+        
         movLayerDraw(&ml0, &layer0);
+        
+       
     }
 }
 
@@ -188,6 +212,7 @@ void readSwitches() {
     u_int sw4 = switches & (1 << 3);
     
     // TODO state machine
+    //and_sr(~8);
     if (!sw2) {
     }
     if (!sw3) {
@@ -210,6 +235,7 @@ void readSwitches() {
             newPos.axes[0] += 4;
         ml1.layer->posNext = newPos;
     }
+   // or_sr(8);
 }
 
 void moveOpponent(MovLayer *ml0, MovLayer *ml2) {
@@ -223,17 +249,11 @@ void moveOpponent(MovLayer *ml0, MovLayer *ml2) {
     Region padBound;
     abShapeGetBounds(ml2->layer->abShape, &newPos2, &padBound);
     
-    if (ballBound.topLeft.axes[0] < padBound.topLeft.axes[0] && padBound.topLeft.axes[0] - 4 > wall.topLeft.axes[0]) {
+    if (ballBound.topLeft.axes[0] < padBound.topLeft.axes[0] && padBound.topLeft.axes[0] - 4 > wall.topLeft.axes[0])
         newPos2.axes[0] -= 4;
-        
-    }
-    if (ballBound.botRight.axes[0] > padBound.botRight.axes[0] && padBound.botRight.axes[0] + 4 < wall.botRight.axes[0]) {
+    if (ballBound.botRight.axes[0] > padBound.botRight.axes[0] && padBound.botRight.axes[0] + 4 < wall.botRight.axes[0])
         newPos2.axes[0] += 4;
-        
-    }
     ml2->layer->posNext = newPos2;
-        
-    //}
     
 }
 
@@ -244,12 +264,10 @@ void wdt_c_handler()
     P1OUT |= GREEN_LED;         // green LED on when CPU on
     count ++;
     if (count == 15) {
-        mlAdvance(&ml0);
-        checkBounce(&ml0, &ml1);
-        moveOpponent(&ml0, &ml2);
-        readSwitches();
+        
         redrawScreen = 1;
         count = 0;
+        buzzerSetPeriod(N0);
     } 
     P1OUT &= ~GREEN_LED;        // green LED off when CPU off
 }
