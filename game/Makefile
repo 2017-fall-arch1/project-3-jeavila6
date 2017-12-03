@@ -13,7 +13,7 @@ AR              = msp430-elf-ar
 OBJECTS         = p2switches.o shape.o region.o rect.o vec2.o layer.o rarrow.o paddle.o
 
 clean:
-	rm -f libLcd.a *.o *.elf
+	rm -f libLcd.a libShape.a *.o *.elf
 
 main.elf: ${COMMON_OBJECTS} main.o wdt_handler.o buzzer.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lTimer -lLcd -lShape -lCircle -lp2sw

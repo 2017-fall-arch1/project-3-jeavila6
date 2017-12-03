@@ -11,7 +11,8 @@
 
 Region wall = {{1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};
 
-//AbPaddle pad0 = {abPaddleGetBounds, abPaddleCheck, {10, 1}};
+//AbPaddle pad0 = {abRectGetBounds, abRectCheck, {10, 1}};
+AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 20};
 AbRect rect1  = {abRectGetBounds, abRectCheck, {10, 1}};
 AbRect rect0  = {abRectGetBounds, abRectCheck, {1,  1}};
 
@@ -27,12 +28,20 @@ AbRectOutline fieldOutline = {
     {screenWidth/2 - 1, screenHeight/2 - 10}
 };
 
+Layer layer3 = {
+    (AbShape *) &rightArrow,
+    {screenWidth/2, screenHeight/2},
+    {0,0}, {0,0},
+    COLOR_ORANGE,
+    0,
+};
+
 Layer layer2 = {                                // layer with green padle
     (AbShape *) &rect1,
     {screenWidth/2, 13},
     {0,0}, {0,0},
     COLOR_RED,
-    0,
+    &layer3,
 };
 
 Layer layer1 = {                                // layer with green padle
@@ -171,7 +180,8 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1, MovLayer *ml2)
     }
 }
 
-void readSwitches() {
+void readSwitches()
+{
     u_int switches = p2sw_read();
     u_int sw1 = switches & (1 << 0);
     u_int sw2 = switches & (1 << 1);
@@ -219,6 +229,52 @@ void readSwitches() {
     }
 }
 
+void startScreen()
+{
+    clearScreen(bgColor);
+    drawString5x7(1,1, "PONG", textColor, bgColor);
+    drawString5x7(1,20, "CONTROLS", textColor, bgColor);
+    drawString5x7(1,30, "S1 - P1 LEFT", textColor, bgColor);    
+    drawString5x7(1,40, "S2 - P1 RIGHT", textColor, bgColor);
+    drawString5x7(1,50, "S3 - P2 LEFT", textColor, bgColor);
+    drawString5x7(1,60, "S4 - P2 RIGHT", textColor, bgColor);
+    drawString5x7(1,80, "PRESS S4 TO BEGIN", textColor, bgColor);
+    while (1) {
+        u_int sw4 = p2sw_read() & (1 << 3);
+        if (!sw4)
+            break;
+    }
+    //startGame();
+}
+
+void endScreen()
+{
+    buzzerSetPeriod(N0);
+    
+    redrawScreen = 1;
+    
+    drawString5x7(1,30, "WINNER", textColor, bgColor);
+    //drawString5x7(1,40, "PRESS S4 FOR NEXT ROUND", textColor, bgColor);
+    
+    or_sr(8);
+    while (1) {
+        u_int sw4 = p2sw_read() & (1 << 3);
+        if (!sw4)
+            break;
+    }
+    and_sr(~8);
+    score1 = score2 = 0;
+    drawString5x7(1,30, "      ", textColor, bgColor);
+    
+    
+}
+
+void checkScore()
+{
+    if (score1 >= 2 || score2 >= 2)
+        endScreen();
+
+}
 
 int main()
 {
@@ -229,14 +285,14 @@ int main()
     lcd_init();             // init lcd
     p2sw_init(15);          // motion demo uses 1, use 15 to read all switches
     buzzer_init();          // init buzzer
+    enableWDTInterrupts();  // enable periodic interrupt
+    or_sr(0x8);             // GIE (enable interrupts)
+    
+    startScreen();
     
     layerInit(&layer0);     // sets bounds into a consistent state
     layerDraw(&layer0);     // renders all layers, pixels not contained in a layer are
     
-    enableWDTInterrupts();  // enable periodic interrupt
-    or_sr(0x8);             // GIE (enable interrupts)
-    
-    drawString5x7(1, screenHeight - 8, "Pong v9",  textColor, bgColor); // (column, row, string, fg color, bg color)
     drawString5x7(117, 1, "0", textColor, bgColor);
     drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);
     
@@ -251,13 +307,12 @@ int main()
         
         mlAdvance(&ml0);
         checkBounce(&ml0, &ml1, &ml2);
-        //moveOpponent(&ml0, &ml2);
+        checkScore();
         readSwitches();
-        
         movLayerDraw(&ml0, &layer0);
-        
-       
     }
+    
+
 }
 
 // watchdog timer interrupt handler, 10 interrupts/sec
