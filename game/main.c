@@ -11,8 +11,6 @@
 
 Region wall = {{1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10}};
 
-//AbPaddle pad0 = {abRectGetBounds, abRectCheck, {10, 1}};
-AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 20};
 AbRect rect1  = {abRectGetBounds, abRectCheck, {10, 1}};
 AbRect rect0  = {abRectGetBounds, abRectCheck, {1,  1}};
 
@@ -28,20 +26,12 @@ AbRectOutline fieldOutline = {
     {screenWidth/2 - 1, screenHeight/2 - 10}
 };
 
-Layer layer3 = {
-    (AbShape *) &rightArrow,
-    {screenWidth/2, screenHeight/2},
-    {0,0}, {0,0},
-    COLOR_ORANGE,
-    0,
-};
-
 Layer layer2 = {                                // layer with green padle
     (AbShape *) &rect1,
     {screenWidth/2, 13},
     {0,0}, {0,0},
     COLOR_RED,
-    &layer3,
+    0,
 };
 
 Layer layer1 = {                                // layer with green padle
@@ -232,30 +222,40 @@ void readSwitches()
 void startScreen()
 {
     clearScreen(bgColor);
-    drawString5x7(1,1, "PONG", textColor, bgColor);
-    drawString5x7(1,20, "CONTROLS", textColor, bgColor);
-    drawString5x7(1,30, "S1 - P1 LEFT", textColor, bgColor);    
-    drawString5x7(1,40, "S2 - P1 RIGHT", textColor, bgColor);
-    drawString5x7(1,50, "S3 - P2 LEFT", textColor, bgColor);
-    drawString5x7(1,60, "S4 - P2 RIGHT", textColor, bgColor);
-    drawString5x7(1,80, "PRESS S4 TO BEGIN", textColor, bgColor);
+    drawString5x7(1, 1,   "PONG", textColor, bgColor);
+    drawString5x7(1, 20,  "CONTROLS", textColor, bgColor);
+    drawString5x7(1, 30,  "S1 - P1 LEFT", textColor, bgColor);    
+    drawString5x7(1, 40,  "S2 - P1 RIGHT", textColor, bgColor);
+    drawString5x7(1, 50,  "S3 - P2 LEFT", textColor, bgColor);
+    drawString5x7(1, 60,  "S4 - P2 RIGHT", textColor, bgColor);
+    drawString5x7(1, 80,  "5 PTS WINS ROUND", textColor, bgColor);
+    drawString5x7(1, 100, "PRESS S4 TO BEGIN", textColor, bgColor);
     while (1) {
         u_int sw4 = p2sw_read() & (1 << 3);
         if (!sw4)
             break;
     }
-    //startGame();
 }
 
 void endScreen()
 {
     buzzerSetPeriod(N0);
-    
     redrawScreen = 1;
+    drawString5x7(1, 30, "WINNER", textColor, bgColor);
+    if (score1 > score2)
+        drawString5x7(1, 40, "PLAYER 1", textColor, bgColor);
+    else
+        drawString5x7(1, 40, "PLAYER 2", textColor, bgColor);
+    drawString5x7(1, 60, "PRESS S4 FOR", textColor, bgColor);
+    drawString5x7(1, 70, "NEXT ROUND", textColor, bgColor);
     
-    drawString5x7(1,30, "WINNER", textColor, bgColor);
-    //drawString5x7(1,40, "PRESS S4 FOR NEXT ROUND", textColor, bgColor);
-    
+    for (int i = 0; i < 3; i++) {
+        beepOnce(C3);
+        beepOnce(E3);
+        beepOnce(G3);
+        beepOnce(C4);
+    }
+  
     or_sr(8);
     while (1) {
         u_int sw4 = p2sw_read() & (1 << 3);
@@ -264,16 +264,17 @@ void endScreen()
     }
     and_sr(~8);
     score1 = score2 = 0;
-    drawString5x7(1,30, "      ", textColor, bgColor);
     
-    
+    layerInit(&layer0);     // sets bounds into a consistent state
+    layerDraw(&layer0);     // renders all layers, pixels not contained in a layer are
+    drawString5x7(117, 1, "0", textColor, bgColor);
+    drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);    
 }
 
 void checkScore()
 {
-    if (score1 >= 2 || score2 >= 2)
+    if (score1 >= 5 || score2 >= 5)
         endScreen();
-
 }
 
 int main()
