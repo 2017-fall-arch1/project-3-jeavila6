@@ -78,6 +78,24 @@ void beepOnce(int note) {
     and_sr(~8);
 }
 
+void buzzerM() 
+{
+    switch (buzzerState) {
+        case 0: /* state 0 - no beep */
+            buzzerSetPeriod(N0);
+            break;
+        case 1: /* state 1 - good beep */
+            buzzerBeepOnce(A3);
+            break;
+        case 2: /* state 2 - bad beep */
+            buzzerBeepOnce(C3);
+            break;
+        case 3: /* state 3 - winner jingle */
+            buzzerJingle();
+            break;
+    }
+}
+
 /* advance ball within field */
 void mlAdvance(MovLayer *ml)
 {
@@ -140,7 +158,7 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1, MovLayer *ml2)
     }
 }
 
-void readSwitches()
+void movePaddles()
 {
     u_int switches = p2sw_read();
     u_int sw1 = switches & (1 << 0);
@@ -149,7 +167,7 @@ void readSwitches()
     u_int sw4 = switches & (1 << 3);
 
     if (!sw1) { /* s1 is pressed, move paddle 1 left */
-        Vec2 newPos;
+        Vec2 newPos; // TODO use a single Vec2 newPos
         vec2Add(&newPos, &ml2.layer->posNext, &ml2.velocity);
         Region boundary;
         abShapeGetBounds(ml2.layer->abShape, &newPos, &boundary);
@@ -225,13 +243,13 @@ void endScreen()
         beepOnce(C4);
     }
   
-    or_sr(8);
-    while (1) {
+    //or_sr(8);
+    while (1) { // TODO simplify here and elsewhere
         u_int sw4 = p2sw_read() & (1 << 3);
         if (!sw4)
             break;
     }
-    and_sr(~8);
+    //and_sr(~8);
     score1 = score2 = 0; /* reset scores */
     
     layerInit(&layer0);
@@ -276,7 +294,7 @@ int main()
         mlAdvance(&ml0);
         checkBounce(&ml0, &ml1, &ml2);
         checkScore();
-        readSwitches();
+        movePaddles();
         movLayerDraw(&ml0, &layer0);
     }
 }
@@ -290,7 +308,7 @@ void wdt_c_handler()
     if (count == 15) {
         redrawScreen = 1;
         count = 0;
-        buzzerSetPeriod(N0);
+        buzzerSetPeriod(N0); // TODO try moving this out
     } 
     P1OUT &= ~GREEN_LED;        /* green LED off when CPU off */
 }
