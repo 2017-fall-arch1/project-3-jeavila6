@@ -2,17 +2,11 @@
 	.p2align 1,0
 	
     .text
-	
-    .extern buzzerState
-	.extern buzzerHit
-	.extern buzzerMiss
-	.extern buzzerJingle
-
 jt: 
     .word default ; jt[0] bounce beep
     .word option1 ; jt[1] hit beep
     .word option2 ; jt[2] miss beep
-    .word option3 ; jt[3] winner jingle
+    .word option3 ; jt[3] jingle beep
     
     .global buzzer_next_state
     

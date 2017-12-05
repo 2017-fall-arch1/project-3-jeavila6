@@ -11,17 +11,14 @@
 
 AbRect rect1  = {abRectGetBounds, abRectCheck, {10, 1}};            /* shape used for paddles */
 AbRect rect0  = {abRectGetBounds, abRectCheck, {1,  1}};            /* shape used for ball */
-
-u_int bgColor = COLOR_BLACK, textColor = COLOR_WHITE;
-
-static char score1 = 0, score2 = 0;                                 /* player 1 and 2 score counts */
-
-int redrawScreen = 1;                                               /* boolean, whether screen needs to be redrawn */
-int buzzerState;                                                    /* used for state machine */
-
 Region wall = { {1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10} }; /* region used for playing field */
 
-extern void buzzer_next_state();
+u_int bgColor = COLOR_BLACK, textColor = COLOR_WHITE;               /* background color and text color */
+static char score1 = 0, score2 = 0;                                 /* player 1 and 2 score counts */
+int redrawScreen = 1;                                               /* boolean, whether screen needs to be redrawn */
+int buzzerState;                                                    /* current buzzer state, used for state machine */
+
+extern void buzzer_next_state();                                    /* state machine assembly function */
 
 /* layer0 contains ball, layer1 contains P1s paddle, layer2 contains P2s paddle */
 Layer layer2 = { (AbShape *) &rect1, {screenWidth/2, 13}, {0,0}, {0,0}, COLOR_RED, 0, };
@@ -35,10 +32,11 @@ typedef struct MovLayer_s {
     struct MovLayer_s *next;
 } MovLayer;
 
-MovLayer ml2 = { &layer2, {0,0}, 0 };       /* initial value of {0,0} will be overwritten */
-MovLayer ml1 = { &layer1, {0,0}, &ml2 };
-MovLayer ml0 = { &layer0, {2,4}, &ml1 };
+MovLayer ml2 = { &layer2, {0,0}, 0 };    /* P2's paddle */
+MovLayer ml1 = { &layer1, {0,0}, &ml2 }; /* P1's paddle */
+MovLayer ml0 = { &layer0, {2,4}, &ml1 }; /* ball */
 
+/* draw moving layers */
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
     int row, col;
@@ -74,48 +72,39 @@ void movLayerDraw(MovLayer *movLayers, Layer *layers)
 }
 
 /* play buzzer note */
-void buzzerBeep(int note) {
-    //or_sr(8);
+void buzzerBeep(int note)
+{
     for (int i = 0; i < 10000; i ++)
         buzzerSetPeriod(note);
     buzzerSetPeriod(N0);
-    //and_sr(~8);
 }
 
+/* play note indicating a hit */
 void buzzerHit()
 {
     buzzerBeep(A3);
 }
 
+/* play note indicating a miss */
 void buzzerMiss()
 {
     buzzerBeep(C3);
 }
 
+/* play note indicating a bounce */
 void buzzerBounce()
 {
     buzzerBeep(C4);
 }
 
+/* play notes indicating a win */
 void buzzerJingle()
 {
-    for (int i = 0; i < 5; i++) { /* play winner tone */
+    for (int i = 0; i < 4; i++) {
         buzzerBeep(C3);
         buzzerBeep(E3);
         buzzerBeep(G3);
         buzzerBeep(C4);
-    }
-}
-
-void buzzerIntro()
-{
-    for (int i = 0; i < 5; i++) { /* play winner tone */
-        buzzerBeep(E3);
-        buzzerBeep(C3);
-        buzzerBeep(E3);
-        buzzerBeep(C3);
-        buzzerBeep(E3);
-        buzzerBeep(G3);
     }
 }
 
@@ -136,22 +125,14 @@ void mlAdvance(MovLayer *ml)
                 char b[12];
                 sprintf(b, "%d", ++score1);
                 drawString5x7(117, 1, b, textColor, bgColor);
-                //buzzerState = 2;
-                //buzzer_next_state();
             }
             if (shapeBoundary.topLeft.axes[1] < wall.topLeft.axes[1]) {     /* hits top, score for player 1 */
                 char b[12];
                 sprintf(b, "%d", ++score2);
                 drawString5x7(117, screenHeight - 8, b, textColor, bgColor);
-                //buzzerState = 2;
-                //buzzer_next_state();
             }
-            //or_sr(8);
             buzzerState = 2;
             buzzer_next_state();
-            //and_sr(~8);
-            //buzzerBeep(G3);
-            
         }
     }
     ml->layer->posNext = newPos;
@@ -178,7 +159,6 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1, MovLayer *ml2)
     if (half >= padBound1.topLeft.axes[0] && half <= padBound1.botRight.axes[0] && ballBound.botRight.axes[1] > padBound1.topLeft.axes[1]) {
         int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
         newPos0.axes[1] += (2*velocity);
-        //beepOnce(A3);
         buzzerState = 3;
         buzzer_next_state();
         ml0->layer->posNext = newPos0;
@@ -187,13 +167,13 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1, MovLayer *ml2)
     if (half >= padBound2.topLeft.axes[0] && half <= padBound2.botRight.axes[0] && ballBound.botRight.axes[1] < padBound2.topLeft.axes[1]) {
         int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
         newPos0.axes[1] += (2*velocity);
-        //beepOnce(A3);
         buzzerState = 3;
         buzzer_next_state();
         ml0->layer->posNext = newPos0;
     }
 }
 
+/* move paddles when buttons are pressed */
 void movePaddles()
 {
     u_int switches = p2sw_read();
@@ -203,7 +183,7 @@ void movePaddles()
     u_int sw4 = switches & (1 << 3);
 
     if (!sw1) { /* s1 is pressed, move paddle 1 left */
-        Vec2 newPos; // TODO use a single Vec2 newPos
+        Vec2 newPos;
         vec2Add(&newPos, &ml2.layer->posNext, &ml2.velocity);
         Region boundary;
         abShapeGetBounds(ml2.layer->abShape, &newPos, &boundary);
@@ -253,8 +233,6 @@ void startScreen()
     drawString5x7(5, 80,  "5 pts wins round", textColor, bgColor);
     drawString5x7(5, 100, "Press S4 to begin", textColor, bgColor);
     
-    //buzzerIntro();
-    
     while (1) { /* wait for s4 press to start game*/
         if (!(p2sw_read() & (1 << 3)))
             break;
@@ -264,7 +242,6 @@ void startScreen()
 /* display winner and pause game */
 void endScreen()
 {
-    //buzzerSetPeriod(N0);
     redrawScreen = 1;
     drawString5x7(5, 40, "Winner Player ", textColor, bgColor);
     if (score1 > score2)
@@ -298,7 +275,6 @@ void checkScore()
         endScreen();
 }
 
-//extern void buzzer_next_state(void); /* function prototype */
 
 int main()
 {
@@ -319,7 +295,7 @@ int main()
     drawString5x7(117, 1, "0", textColor, bgColor);
     drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);
     
-    buzzerState = 1;
+    buzzerState = 1;        /* buzzerState begins at state 1 */
     buzzer_next_state();
     
     
