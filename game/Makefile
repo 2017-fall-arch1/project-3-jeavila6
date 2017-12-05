@@ -15,7 +15,7 @@ OBJECTS         = p2switches.o shape.o region.o rect.o vec2.o layer.o rarrow.o p
 clean:
 	rm -f libLcd.a libShape.a *.o *.elf
 
-main.elf: ${COMMON_OBJECTS} main.o wdt_handler.o buzzer.o
+main.elf: ${COMMON_OBJECTS} main.o wdt_handler.o buzzer.o af.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lTimer -lLcd -lShape -lCircle -lp2sw
 
 load: main.elf

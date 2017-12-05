@@ -17,8 +17,11 @@ u_int bgColor = COLOR_BLACK, textColor = COLOR_WHITE;
 static char score1 = 0, score2 = 0;                                 /* player 1 and 2 score counts */
 
 int redrawScreen = 1;                                               /* boolean, whether screen needs to be redrawn */
+int buzzerState;                                                    /* used for state machine */
 
 Region wall = { {1,10}, {SHORT_EDGE_PIXELS, LONG_EDGE_PIXELS-10} }; /* region used for playing field */
+
+extern void buzzer_next_state();
 
 /* layer0 contains ball, layer1 contains P1s paddle, layer2 contains P2s paddle */
 Layer layer2 = { (AbShape *) &rect1, {screenWidth/2, 13}, {0,0}, {0,0}, COLOR_RED, 0, };
@@ -71,28 +74,48 @@ void movLayerDraw(MovLayer *movLayers, Layer *layers)
 }
 
 /* play buzzer note */
-void beepOnce(int note) {
-    or_sr(8);
+void buzzerBeep(int note) {
+    //or_sr(8);
     for (int i = 0; i < 10000; i ++)
         buzzerSetPeriod(note);
-    and_sr(~8);
+    buzzerSetPeriod(N0);
+    //and_sr(~8);
 }
 
-void buzzerM() 
+void buzzerHit()
 {
-    switch (buzzerState) {
-        case 0: /* state 0 - no beep */
-            buzzerSetPeriod(N0);
-            break;
-        case 1: /* state 1 - good beep */
-            buzzerBeepOnce(A3);
-            break;
-        case 2: /* state 2 - bad beep */
-            buzzerBeepOnce(C3);
-            break;
-        case 3: /* state 3 - winner jingle */
-            buzzerJingle();
-            break;
+    buzzerBeep(A3);
+}
+
+void buzzerMiss()
+{
+    buzzerBeep(C3);
+}
+
+void buzzerBounce()
+{
+    buzzerBeep(C4);
+}
+
+void buzzerJingle()
+{
+    for (int i = 0; i < 5; i++) { /* play winner tone */
+        buzzerBeep(C3);
+        buzzerBeep(E3);
+        buzzerBeep(G3);
+        buzzerBeep(C4);
+    }
+}
+
+void buzzerIntro()
+{
+    for (int i = 0; i < 5; i++) { /* play winner tone */
+        buzzerBeep(E3);
+        buzzerBeep(C3);
+        buzzerBeep(E3);
+        buzzerBeep(C3);
+        buzzerBeep(E3);
+        buzzerBeep(G3);
     }
 }
 
@@ -113,13 +136,22 @@ void mlAdvance(MovLayer *ml)
                 char b[12];
                 sprintf(b, "%d", ++score1);
                 drawString5x7(117, 1, b, textColor, bgColor);
+                //buzzerState = 2;
+                //buzzer_next_state();
             }
             if (shapeBoundary.topLeft.axes[1] < wall.topLeft.axes[1]) {     /* hits top, score for player 1 */
                 char b[12];
                 sprintf(b, "%d", ++score2);
                 drawString5x7(117, screenHeight - 8, b, textColor, bgColor);
+                //buzzerState = 2;
+                //buzzer_next_state();
             }
-            beepOnce(C3);
+            //or_sr(8);
+            buzzerState = 2;
+            buzzer_next_state();
+            //and_sr(~8);
+            //buzzerBeep(G3);
+            
         }
     }
     ml->layer->posNext = newPos;
@@ -146,14 +178,18 @@ void checkBounce(MovLayer *ml0, MovLayer *ml1, MovLayer *ml2)
     if (half >= padBound1.topLeft.axes[0] && half <= padBound1.botRight.axes[0] && ballBound.botRight.axes[1] > padBound1.topLeft.axes[1]) {
         int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
         newPos0.axes[1] += (2*velocity);
-        beepOnce(A3);
+        //beepOnce(A3);
+        buzzerState = 3;
+        buzzer_next_state();
         ml0->layer->posNext = newPos0;
     }
     /* bounce from paddle 2 */
     if (half >= padBound2.topLeft.axes[0] && half <= padBound2.botRight.axes[0] && ballBound.botRight.axes[1] < padBound2.topLeft.axes[1]) {
         int velocity = ml0->velocity.axes[1] = -ml0->velocity.axes[1];
         newPos0.axes[1] += (2*velocity);
-        beepOnce(A3);
+        //beepOnce(A3);
+        buzzerState = 3;
+        buzzer_next_state();
         ml0->layer->posNext = newPos0;
     }
 }
@@ -208,17 +244,19 @@ void movePaddles()
 void startScreen()
 {
     clearScreen(bgColor);
-    drawString5x7(1, 1,   "PONG", textColor, bgColor);
-    drawString5x7(1, 20,  "CONTROLS", textColor, bgColor);
-    drawString5x7(1, 30,  "S1 - P1 LEFT", textColor, bgColor);    
-    drawString5x7(1, 40,  "S2 - P1 RIGHT", textColor, bgColor);
-    drawString5x7(1, 50,  "S3 - P2 LEFT", textColor, bgColor);
-    drawString5x7(1, 60,  "S4 - P2 RIGHT", textColor, bgColor);
-    drawString5x7(1, 80,  "5 PTS WINS ROUND", textColor, bgColor);
-    drawString5x7(1, 100, "PRESS S4 TO BEGIN", textColor, bgColor);
+    drawString5x7(5, 1,   "Pong", textColor, bgColor);
+    drawString5x7(5, 20,  "Controls", textColor, bgColor);
+    drawString5x7(5, 30,  "S1 - P1 left", textColor, bgColor);    
+    drawString5x7(5, 40,  "S2 - P1 right", textColor, bgColor);
+    drawString5x7(5, 50,  "S3 - P2 left", textColor, bgColor);
+    drawString5x7(5, 60,  "S4 - P2 right", textColor, bgColor);
+    drawString5x7(5, 80,  "5 pts wins round", textColor, bgColor);
+    drawString5x7(5, 100, "Press S4 to begin", textColor, bgColor);
+    
+    //buzzerIntro();
+    
     while (1) { /* wait for s4 press to start game*/
-        u_int sw4 = p2sw_read() & (1 << 3);
-        if (!sw4)
+        if (!(p2sw_read() & (1 << 3)))
             break;
     }
 }
@@ -226,30 +264,25 @@ void startScreen()
 /* display winner and pause game */
 void endScreen()
 {
-    buzzerSetPeriod(N0);
+    //buzzerSetPeriod(N0);
     redrawScreen = 1;
-    drawString5x7(1, 30, "WINNER", textColor, bgColor);
+    drawString5x7(5, 40, "Winner Player ", textColor, bgColor);
     if (score1 > score2)
-        drawString5x7(1, 40, "PLAYER 1", textColor, bgColor);
+        drawString5x7(87, 40, "1", textColor, bgColor);
     else
-        drawString5x7(1, 40, "PLAYER 2", textColor, bgColor);
-    drawString5x7(1, 60, "PRESS S4 FOR", textColor, bgColor);
-    drawString5x7(1, 70, "NEXT ROUND", textColor, bgColor);
+        drawString5x7(87, 40, "2", textColor, bgColor);
+    drawString5x7(5, 60, "Press S4 for", textColor, bgColor);
+    drawString5x7(5, 70, "next round", textColor, bgColor);
     
-    for (int i = 0; i < 3; i++) { /* play winner tone */
-        beepOnce(C3);
-        beepOnce(E3);
-        beepOnce(G3);
-        beepOnce(C4);
-    }
-  
-    //or_sr(8);
-    while (1) { // TODO simplify here and elsewhere
-        u_int sw4 = p2sw_read() & (1 << 3);
-        if (!sw4)
+    buzzerState = 3;
+    buzzer_next_state();
+    
+    or_sr(8);
+    while (1) { /* wait for s4 press to continue */
+        if (!(p2sw_read() & (1 << 3)))
             break;
     }
-    //and_sr(~8);
+    and_sr(~8);
     score1 = score2 = 0; /* reset scores */
     
     layerInit(&layer0);
@@ -264,6 +297,8 @@ void checkScore()
     if (score1 >= 5 || score2 >= 5)
         endScreen();
 }
+
+//extern void buzzer_next_state(void); /* function prototype */
 
 int main()
 {
@@ -283,6 +318,10 @@ int main()
     layerDraw(&layer0);     /* render all layers */
     drawString5x7(117, 1, "0", textColor, bgColor);
     drawString5x7(117, screenHeight - 8, "0", textColor, bgColor);
+    
+    buzzerState = 1;
+    buzzer_next_state();
+    
     
     for(;;) { 
         while (!redrawScreen) {     /* pause CPU if screen doesn't need updating */
@@ -308,7 +347,6 @@ void wdt_c_handler()
     if (count == 15) {
         redrawScreen = 1;
         count = 0;
-        buzzerSetPeriod(N0); // TODO try moving this out
     } 
     P1OUT &= ~GREEN_LED;        /* green LED off when CPU off */
 }
